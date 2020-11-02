@@ -3,6 +3,11 @@ name = "cpe"
 version = "0.1.0"
 authors = ["Ken Johnson <ken.johnso93@gmail.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+license-file = "LICENSE"
+keywords = ["cpe"]
+description = "CPE 2.2 and 2.3 handling in Rust"
+repository = "https://github.com/johnso51/cpe-rs"
 
 [dependencies]
 thiserror = "1.0"
