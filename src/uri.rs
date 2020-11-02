@@ -3,80 +3,10 @@
 //! CPE 2.2 URI as specified in [CPE22](https://cpe.mitre.org/files/cpe-specification_2.2.pdf) or in
 //! [CPE23-N:6](https://nvlpubs.nist.gov/nistpubs/Legacy/IR/nistir7695.pdf)
 //!
-//! ## Grammar
+//! ## Valid values
 //! The specification for a URI from [CPE23-N:6](https://nvlpubs.nist.gov/nistpubs/Legacy/IR/nistir7695.pdf)
 //! defines both a strict grammar, and a more permissive grammar. The URIs are parsed with the permissive
-//! grammar by default, but can be parsed with the strict grammar with TODO link.
-//!
-//! ### Strict Grammar
-//!
-//! ```ignore
-//! cpe-name         = "cpe:/" component-list
-//! component-list   = part ":" vendor ":" product ":" version ":" update ":" edition ":" lang
-//! component-list   /= part ":" vendor ":" product ":" version ":" update ":" edition
-//! component-list   /= part ":" vendor ":" product ":" version ":" update
-//! component-list   /= part ":" vendor ":" product ":" version
-//! component-list   /= part ":" vendor ":" product
-//! component-list   /= part ":" vendor
-//! component-list   /= part
-//! component-list   /= empty
-//! part             = "h" / "o" / "a" / empty
-//! vendor           = string
-//! product          = string
-//! version          = string
-//! update           = string
-//! edition          = string
-//! lang             = LANGTAG / empty
-//! string           = *( unreserved / pct-encoded )
-//! empty            = ""
-//! unreserved       = ALPHA / DIGIT / "-" / "." / "_" / "˜"
-//! pct-encoded      = "%" HEXDIG HEXDIG
-//! ALPHA            = %x41-5a / %x61-7a ; A-Z or a-z
-//! DIGIT            = %x30-39 ; 0-9
-//! HEXDIG           = DIGIT / "a" / "b" / "c" / "d" / "e" / "f"
-//! LANGTAG          = cf. [RFC5646]
-//! ```
-//!
-//! ### Permissive Grammar
-//!
-//! ```ignore
-//! cpe-name         = "cpe:/" component-list
-//! component-list   = part ":" vendor ":" product ":" version ":" update ":" edition ":" lang
-//! component-list   /= part ":" vendor ":" product ":" version ":" update ":" edition
-//! component-list   /= part ":" vendor ":" product ":" version ":" update
-//! component-list   /= part ":" vendor ":" product ":" version
-//! component-list   /= part ":" vendor ":" product
-//! component-list   /= part ":" vendor
-//! component-list   /= part
-//! component-list   /= empty
-//! part             = "h" / "o" / "a" / empty
-//! vendor           = string
-//! product          = string
-//! version          = string
-//! update           = string
-//! edition          = string / packed
-//! lang             = LANGTAG / empty
-//! string           = str_wo_special / str_w_special
-//! str_wo_special   = *( unreserved / pct-encoded )
-//! str_w_special    = *1spec_chrs 1*( unreserved / pct-encoded ) *1spec_chrs
-//! spec_chrs        = 1*spec1 / spec2
-//! packed           = "~" string "~" string "~" string "~" string "~" string
-//! empty            = ""
-//! unreserved       = ALPHA / DIGIT / "-" / "." / "_"
-//! special          = spec1 / spec2
-//! spec1            = "%01"
-//! spec2            = "%02"
-//! pct-encoded      = "%21" / "%22" / "%23" / "%24" / "%25" / "%26" / "%27" /
-//!                  = "%28" / "%29" / "%2a" / "%2b" / "%2c" / "%2f" / "%3a" /
-//!                  = "%3b" / "%3c" / "%3d" / "%3e" / "%3f" / "%40" / "%5b" /
-//!                  = "%5c" / "%5d" / "%5e" / "%60" / "%7b" / "%7c" / "%7d" /
-//!                  = "%7e"
-//! ALPHA            = %x41-5a / %x61-7a ; A-Z or a-z
-//! DIGIT            = %x30-39 ; 0-9
-//! LANGTAG          = language ["-" region] ; cf. [RFC5646]
-//! language         = 2*3ALPHA ; shortest ISO 639 code
-//! region           = 2ALPHA / 3DIGIT ; ISO 3166-1 code or UN M.49 code
-//! ```
+//! grammar.
 //!
 //! ### Prefixes
 //!
@@ -86,69 +16,200 @@
 //! strict grammar.
 
 use crate::builder::CpeBuilder;
-use crate::component::Component;
+use crate::component::{Component, OwnedComponent};
 use crate::cpe::{CpeType, Language};
 use crate::error::{CpeError, Result};
-use crate::parse::ComponentStringParser;
-use crate::wfn::Wfn;
+use crate::parse::{parse_packed_uri_attribute, parse_uri_attribute};
+use crate::wfn::{OwnedWfn, Wfn};
+
+use std::fmt;
 
 use std::convert::TryFrom;
 
+/// Helper macro to create a `Uri` from literal values.
+#[macro_export]
+macro_rules! uri {
+    ($($field:ident : $value:literal),*$(,)*) => {{
+        let mut uri = Uri::builder();
+        $(
+            wfn.$field($value);
+        )*
+            wfn.validate()
+    }}
+}
+
+/// A CPE 2.2 URI
+///
+/// Note: field access is limited to ensure values only contain
+/// semantically valid components. Fields can be accessed through the
+/// "getter" methods, or through the [Cpe](../cpe/trait.Cpe.html) methods,
+/// although the former is preferred with a `Cpe` as opposed to an `OwnedCpe`.
+///
+/// Display is implemented to show the decoded contents by default, or to re-encode
+/// the components when `#` is used to specify an alternate.
+///
+///```
+/// use cpe::uri::Uri;
+/// let uri = Uri::builder()
+///           .part("a")
+///           .vendor("foo%21")
+///           .validate()
+///           .unwrap();
+///
+/// assert_eq!(format!("{}", uri), "cpe:/a:foo!:*:*:*:*:*".to_owned());
+/// assert_eq!(format!("{:#}", uri), "cpe:/a:foo%21:*:*:*:*:*".to_owned());
+///
+///```
+///
+/// Additionally, the `0` for zero-padding integers can be used to omit default "*" fields.
+///```
+/// use cpe::uri::Uri;
+/// let uri = Uri::builder()
+///           .part("a")
+///           .vendor("foo%21")
+///           .validate()
+///           .unwrap();
+///
+/// assert_eq!(format!("{:0}", uri), "cpe:/a:foo!".to_owned());
+/// assert_eq!(format!("{:#0}", uri), "cpe:/a:foo%21".to_owned());
+///```
 #[derive(Default, Debug, PartialEq)]
 pub struct Uri<'a> {
-    pub part: CpeType,
-    pub vendor: Component<'a>,
-    pub product: Component<'a>,
-    pub version: Component<'a>,
-    pub update: Component<'a>,
-    pub edition: Component<'a>,
-    /// The language tag, in RFC 5646 (aka BCP47) format, as documented [here](https://tools.ietf.org/html/bcp47).
-    /// Note that `cpe-rs` currently uses this for CPE v2.2 and CPE v2.3, despite CPE v2.2 using RFC 4646
-    /// language tags, which were obsoleted by RFC 5646.
-    pub language: Language,
-    pub sw_edition: Component<'a>,
-    pub target_sw: Component<'a>,
-    pub target_hw: Component<'a>,
-    pub other: Component<'a>,
+    pub(crate) part: CpeType,
+    pub(crate) vendor: Component<'a>,
+    pub(crate) product: Component<'a>,
+    pub(crate) version: Component<'a>,
+    pub(crate) update: Component<'a>,
+    pub(crate) edition: Component<'a>,
+    pub(crate) language: Language,
+    pub(crate) sw_edition: Component<'a>,
+    pub(crate) target_sw: Component<'a>,
+    pub(crate) target_hw: Component<'a>,
+    pub(crate) other: Component<'a>,
+}
+
+impl fmt::Display for Uri<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        macro_rules! write_field {
+            ($field:ident) => {
+                if !f.sign_aware_zero_pad() || &self.$field != &Component::Any {
+                    if f.alternate() {
+                        write!(f, ":{}", self.$field.encode_uri())?;
+                    } else {
+                        write!(f, ":{:#}", self.$field)?;
+                    }
+                }
+            };
+        }
+        write!(f, "cpe:/")?;
+        write!(f, "{:#}", self.part)?;
+        write_field!(vendor);
+        write_field!(product);
+        write_field!(version);
+        write_field!(update);
+        if self.sw_edition != Component::Any
+            || self.target_sw != Component::Any
+            || self.target_hw != Component::Any
+            || self.other != Component::Any
+        {
+            if f.alternate() {
+                write!(
+                    f,
+                    "~{}~{}~{}~{}~{}",
+                    self.edition.encode_uri(),
+                    self.sw_edition.encode_uri(),
+                    self.target_sw.encode_uri(),
+                    self.target_hw.encode_uri(),
+                    self.other.encode_uri()
+                )?;
+            } else {
+                write!(
+                    f,
+                    "~{:#}~{:#}~{:#}~{:#}~{:#}",
+                    self.edition, self.sw_edition, self.target_sw, self.target_hw, self.other
+                )?;
+            }
+        } else {
+            write_field!(edition);
+        }
+        if !f.sign_aware_zero_pad() || self.language != Language::Any {
+            write!(f, ":{:#}", self.language)?;
+        }
+        Ok(())
+    }
 }
 
 impl<'a> Uri<'a> {
+    /// Create a new Uri with default values of `ANY` for each attribute.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create a `CpeBuilder` struct to construct a new Wfn.
+    ///
+    /// ```
+    /// use cpe::uri::Uri;
+    ///
+    /// let cpe: Uri = Uri::builder()
+    ///               .part("a")
+    ///               .vendor("rust")
+    ///               .product("cargo")
+    ///               .validate()
+    ///               .unwrap();
+    ///
+    /// println!("{:?}", cpe);
+    /// ```
     pub fn builder() -> CpeBuilder<'a, Uri<'a>> {
         CpeBuilder::default()
     }
 
+    /// Set the CPE type part, `a`, `o`, `h`, or `*`.
+    ///
+    /// The provided string slice will be parsed to its semantic meaning.
     pub fn set_part(&mut self, part: &'a str) -> Result<()> {
         self.part = CpeType::try_from(part)?;
         Ok(())
     }
 
+    /// Set the CPE vendor.
+    ///
+    /// The provided string slice will be parsed to its semantic meaning.
     pub fn set_vendor(&mut self, vendor: &'a str) -> Result<()> {
         self.vendor = Component::parse_uri_field(vendor)?;
         Ok(())
     }
 
+    /// Set the CPE product.
+    ///
+    /// The provided string slice will be parsed to its semantic meaning.
     pub fn set_product(&mut self, product: &'a str) -> Result<()> {
         self.product = Component::parse_uri_field(product)?;
         Ok(())
     }
 
+    /// Set the CPE product.
+    ///
+    /// The provided string will be parsed to its semantic meaning.
     pub fn set_version(&mut self, version: &'a str) -> Result<()> {
         self.version = Component::parse_uri_field(version)?;
         Ok(())
     }
 
+    /// Set the CPE update.
+    ///
+    /// The provided string will be parsed to its semantic meaning.
     pub fn set_update(&mut self, update: &'a str) -> Result<()> {
         self.update = Component::parse_uri_field(update)?;
         Ok(())
     }
 
+    /// Set the CPE edition.
+    ///
+    /// The provided string will be parsed to its semantic meaning.
+    /// Note that this funciton will unpack a packed `~` delimited edition component if applicable.
     pub fn set_edition(&mut self, edition: &'a str) -> Result<()> {
         let (edition, sw_edition, target_sw, target_hw, other) =
-            ComponentStringParser::<Uri>::parse_packed_value(edition)?;
+            parse_packed_uri_attribute(edition)?;
         self.edition = edition;
         self.sw_edition = sw_edition;
         self.target_sw = target_sw;
@@ -157,11 +218,34 @@ impl<'a> Uri<'a> {
         Ok(())
     }
 
+    /// Set the CPE language.
+    ///
+    /// The provided string will be parsed to its semantic meaning.
+    /// `language` must be a valid RFC-5646 language tag.
     pub fn set_language(&mut self, language: &'a str) -> Result<()> {
-        self.language = if language == "ANY" { Language::Any } else { Language::Language(language.parse()?) };
+        self.language = if language == "ANY" {
+            Language::Any
+        } else {
+            Language::Language(language.parse()?)
+        };
         Ok(())
     }
 
+    /// Create an Owned copy of this CPE URI.
+    pub fn to_owned(&self) -> OwnedUri {
+        self.into()
+    }
+
+    /// Create a `Wfn`, perserving lifetimes of the original input.
+    /// Note that strings may be cloned if the input was decoded.
+    pub fn as_uri(&self) -> Wfn<'a> {
+        self.into()
+    }
+
+    /// Parse a CPE URI string.
+    ///
+    /// This function will decode percent encodings and special characters to their
+    /// semantic meaning.
     pub fn parse(uri: &'a str) -> Result<Self> {
         let uri = if uri.starts_with("x-") || uri.starts_with("p-") {
             &uri[2..]
@@ -188,7 +272,7 @@ impl<'a> Uri<'a> {
         macro_rules! parse_field {
             (parsed: $($parsed:ident),+) => {
                 if let Some(c) = components.next() {
-                    ComponentStringParser::<Uri>::new(c).parse()?
+                    parse_uri_attribute(c)?
                 } else {
                     return Ok(Self{ $($parsed, )* ..Default::default() });
                 }
@@ -202,7 +286,7 @@ impl<'a> Uri<'a> {
 
         let (edition, sw_edition, target_sw, target_hw, other) = components
             .next()
-            .map(|edition| ComponentStringParser::<Uri>::parse_packed_value(edition))
+            .map(|edition| parse_packed_uri_attribute(edition))
             .transpose()?
             .unwrap_or_default();
 
@@ -245,6 +329,69 @@ impl<'a> From<Wfn<'a>> for Uri<'a> {
         }
     }
 }
+
+impl<'a> From<&Wfn<'a>> for Uri<'a> {
+    fn from(wfn: &Wfn<'a>) -> Self {
+        Self {
+            part: wfn.part,
+            vendor: wfn.vendor.clone(),
+            product: wfn.product.clone(),
+            version: wfn.version.clone(),
+            update: wfn.update.clone(),
+            edition: wfn.edition.clone(),
+            language: wfn.language.clone(),
+            sw_edition: wfn.sw_edition.clone(),
+            target_sw: wfn.target_sw.clone(),
+            target_hw: wfn.target_hw.clone(),
+            other: wfn.other.clone(),
+        }
+    }
+}
+
+/// Owned copy of a URI for when lifetimes do not permit borrowing
+/// from the input.
+#[derive(Default, Debug, PartialEq)]
+pub struct OwnedUri {
+    pub(crate) part: CpeType,
+    pub(crate) vendor: OwnedComponent,
+    pub(crate) product: OwnedComponent,
+    pub(crate) version: OwnedComponent,
+    pub(crate) update: OwnedComponent,
+    pub(crate) edition: OwnedComponent,
+    pub(crate) language: Language,
+    pub(crate) sw_edition: OwnedComponent,
+    pub(crate) target_sw: OwnedComponent,
+    pub(crate) target_hw: OwnedComponent,
+    pub(crate) other: OwnedComponent,
+}
+
+macro_rules! into {
+    ($t:ty) => {
+        impl From<$t> for OwnedUri {
+            fn from(cpe: $t) -> Self {
+                Self {
+                    part: cpe.part,
+                    vendor: cpe.vendor.to_owned(),
+                    product: cpe.product.to_owned(),
+                    version: cpe.version.to_owned(),
+                    update: cpe.update.to_owned(),
+                    edition: cpe.edition.to_owned(),
+                    language: cpe.language.clone(),
+                    sw_edition: cpe.sw_edition.to_owned(),
+                    target_sw: cpe.target_sw.to_owned(),
+                    target_hw: cpe.target_hw.to_owned(),
+                    other: cpe.other.to_owned(),
+                }
+            }
+        }
+    };
+}
+
+into!(Uri<'_>);
+into!(&Uri<'_>);
+into!(Wfn<'_>);
+into!(&Wfn<'_>);
+into!(OwnedWfn);
 
 #[cfg(test)]
 mod test {

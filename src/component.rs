@@ -10,11 +10,10 @@
 //! WFN or URI (with TODO: links) is preferred.
 
 use crate::error::Result;
-use crate::parse::ComponentStringParser;
-use crate::uri::Uri;
-use crate::wfn::Wfn;
+use crate::parse::*;
 
 use std::borrow::Cow;
+use std::fmt;
 
 pub type PackedComponents<'a> = (
     Component<'a>,
@@ -29,6 +28,24 @@ pub enum Component<'a> {
     Any,
     NotApplicable,
     Value(Cow<'a, str>),
+}
+
+impl fmt::Display for Component<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if f.alternate() {
+            match self {
+                Self::Any => write!(f, "*"),
+                Self::NotApplicable => write!(f, "?"),
+                Self::Value(val) => write!(f, "{}", val),
+            }
+        } else {
+            match self {
+                Self::Any => write!(f, "ANY"),
+                Self::NotApplicable => write!(f, "NA"),
+                Self::Value(val) => write!(f, "{}", val),
+            }
+        }
+    }
 }
 
 impl Default for Component<'_> {
@@ -59,13 +76,23 @@ impl<'a> Component<'a> {
     }
 
     pub fn parse_wfn_field(value: &'a str) -> Result<Self> {
-        let mut parser = ComponentStringParser::<Wfn>::new(value);
-        parser.parse()
+        parse_wfn_attribute(value)
     }
 
     pub fn parse_uri_field(value: &'a str) -> Result<Self> {
-        let mut parser = ComponentStringParser::<Uri>::new(value);
-        parser.parse()
+        parse_uri_attribute(value)
+    }
+
+    pub fn to_owned(&self) -> OwnedComponent {
+        self.into()
+    }
+
+    pub fn encode_uri(&'a self) -> Cow<'a, str> {
+        crate::parse::encode_uri_attribute(self)
+    }
+
+    pub fn encode_wfn(&'a self) -> Cow<'a, str> {
+        crate::parse::encode_wfn_attribute(self)
     }
 }
 
@@ -76,6 +103,12 @@ pub enum OwnedComponent {
     Value(String),
 }
 
+impl Default for OwnedComponent {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
 impl OwnedComponent {
     pub fn parse_wfn_field(value: &str) -> Result<Self> {
         Component::parse_wfn_field(value).map(|component| component.into())
@@ -83,6 +116,28 @@ impl OwnedComponent {
 
     pub fn parse_uri_field(value: &str) -> Result<Self> {
         Component::parse_uri_field(value).map(|component| component.into())
+    }
+
+    pub fn as_component(&self) -> Component {
+        match self {
+            Self::Any => Component::Any,
+            Self::NotApplicable => Component::NotApplicable,
+            Self::Value(s) => Component::Value(Cow::Borrowed(s.as_str())),
+        }
+    }
+
+    pub(crate) fn to_owned(&self) -> OwnedComponent {
+        self.clone()
+    }
+}
+
+impl From<&Component<'_>> for OwnedComponent {
+    fn from(attribute: &Component<'_>) -> Self {
+        match attribute {
+            Component::Any => Self::Any,
+            Component::NotApplicable => Self::NotApplicable,
+            Component::Value(value) => Self::Value((*value).to_owned().to_string()),
+        }
     }
 }
 

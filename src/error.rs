@@ -1,3 +1,4 @@
+//! Error types and Result wrapper.
 use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, CpeError>;
@@ -6,6 +7,8 @@ pub type Result<T> = std::result::Result<T, CpeError>;
 pub enum CpeError {
     #[error("invalid uri `{value}`")]
     InvalidUri { value: String },
+    #[error("invalid packed component `{value}` ({expected})")]
+    InvalidPacked { value: String, expected: String },
     #[error("error decoding value `{value}`, not well formed UTF-8")]
     Utf8Error {
         #[source]
@@ -51,4 +54,6 @@ pub enum CpeError {
     UnexpectedEnd { value: String, expected: String },
     #[error("Duplicate `{name}` attirbute in `{value}`")]
     DuplicateAttribute { value: String, name: &'static str },
+    #[error("Invalid attribute value `{value}`")]
+    InvalidAttribute { value: String },
 }
