@@ -44,7 +44,7 @@ pub enum CpeError {
     LanguageError {
         #[from]
         #[source]
-        source: language_tags::Error,
+        source: language_tags::ParseError,
     },
     #[error("Invalid CPE type \"{value}\"")]
     InvalidCpeType { value: String },
