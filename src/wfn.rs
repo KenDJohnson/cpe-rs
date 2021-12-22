@@ -122,7 +122,7 @@ macro_rules! wfn {
 /// assert_eq!(format!("{:0}", wfn), "wfn:[part=a,vendor=foo!]".to_owned());
 /// assert_eq!(format!("{:#0}", wfn), "wfn:[part=a,vendor=foo\\!]".to_owned());
 ///```
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Hash)]
 pub struct Wfn<'a> {
     pub(crate) part: CpeType,
     pub(crate) vendor: Component<'a>,
@@ -426,6 +426,7 @@ impl<'a> From<&Uri<'a>> for Wfn<'a> {
 
 /// Owned copy of a Wfn for when lifetimes do not permit borrowing
 /// from the input.
+#[derive(Hash)]
 pub struct OwnedWfn {
     pub(crate) part: CpeType,
     pub(crate) vendor: OwnedComponent,

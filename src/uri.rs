@@ -350,7 +350,7 @@ impl<'a> From<&Wfn<'a>> for Uri<'a> {
 
 /// Owned copy of a URI for when lifetimes do not permit borrowing
 /// from the input.
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Hash)]
 pub struct OwnedUri {
     pub(crate) part: CpeType,
     pub(crate) vendor: OwnedComponent,
