@@ -122,7 +122,7 @@ macro_rules! wfn {
 /// assert_eq!(format!("{:0}", wfn), "wfn:[part=a,vendor=foo!]".to_owned());
 /// assert_eq!(format!("{:#0}", wfn), "wfn:[part=a,vendor=foo\\!]".to_owned());
 ///```
-#[derive(Default, Debug, PartialEq, Hash)]
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Wfn<'a> {
     pub(crate) part: CpeType,
     pub(crate) vendor: Component<'a>,
@@ -426,7 +426,7 @@ impl<'a> From<&Uri<'a>> for Wfn<'a> {
 
 /// Owned copy of a Wfn for when lifetimes do not permit borrowing
 /// from the input.
-#[derive(Hash)]
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct OwnedWfn {
     pub(crate) part: CpeType,
     pub(crate) vendor: OwnedComponent,
@@ -439,6 +439,42 @@ pub struct OwnedWfn {
     pub(crate) target_sw: OwnedComponent,
     pub(crate) target_hw: OwnedComponent,
     pub(crate) other: OwnedComponent,
+}
+
+impl fmt::Display for OwnedWfn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        macro_rules! write_field {
+            ($field:ident) => {
+                if !f.sign_aware_zero_pad() || self.$field != OwnedComponent::Any {
+                    if f.alternate() {
+                        write!(
+                            f,
+                            ",{}={}",
+                            stringify!($field),
+                            self.$field.as_component().encode_wfn()
+                        )?;
+                    } else {
+                        write!(f, ",{}={}", stringify!($field), self.$field.as_component())?;
+                    }
+                }
+            };
+        }
+        write!(f, "wfn:[")?;
+        write!(f, "part={}", self.part)?;
+        write_field!(vendor);
+        write_field!(product);
+        write_field!(version);
+        write_field!(update);
+        write_field!(edition);
+        if !f.sign_aware_zero_pad() || self.language != Language::Any {
+            write!(f, ",language={}", self.language)?;
+        }
+        write_field!(sw_edition);
+        write_field!(target_sw);
+        write_field!(target_hw);
+        write_field!(other);
+        write!(f, "]")
+    }
 }
 
 macro_rules! into {
