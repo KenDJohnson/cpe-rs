@@ -73,7 +73,7 @@ macro_rules! uri {
 /// assert_eq!(format!("{:0}", uri), "cpe:/a:foo!".to_owned());
 /// assert_eq!(format!("{:#0}", uri), "cpe:/a:foo%21".to_owned());
 ///```
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Hash)]
 pub struct Uri<'a> {
     pub(crate) part: CpeType,
     pub(crate) vendor: Component<'a>,

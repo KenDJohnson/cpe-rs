@@ -12,7 +12,7 @@ use std::str::FromStr;
 /// CPE Language value
 ///
 /// May be "ANY", or a valid RFC-5646 language tag.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Language {
     Any,
     Language(LanguageTag),
