@@ -73,7 +73,7 @@ macro_rules! uri {
 /// assert_eq!(format!("{:0}", uri), "cpe:/a:foo!".to_owned());
 /// assert_eq!(format!("{:#0}", uri), "cpe:/a:foo%21".to_owned());
 ///```
-#[derive(Default, Debug, PartialEq, Hash)]
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Uri<'a> {
     pub(crate) part: CpeType,
     pub(crate) vendor: Component<'a>,
@@ -350,7 +350,7 @@ impl<'a> From<&Wfn<'a>> for Uri<'a> {
 
 /// Owned copy of a URI for when lifetimes do not permit borrowing
 /// from the input.
-#[derive(Default, Debug, PartialEq, Hash)]
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
 pub struct OwnedUri {
     pub(crate) part: CpeType,
     pub(crate) vendor: OwnedComponent,
@@ -363,6 +363,61 @@ pub struct OwnedUri {
     pub(crate) target_sw: OwnedComponent,
     pub(crate) target_hw: OwnedComponent,
     pub(crate) other: OwnedComponent,
+}
+
+impl fmt::Display for OwnedUri {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        macro_rules! write_field {
+            ($field:ident) => {
+                if !f.sign_aware_zero_pad() || self.$field != OwnedComponent::Any {
+                    if f.alternate() {
+                        write!(f, ":{}", self.$field.as_component().encode_uri())?;
+                    } else {
+                        write!(f, ":{:#}", self.$field.as_component())?;
+                    }
+                }
+            };
+        }
+        write!(f, "cpe:/")?;
+        write!(f, "{:#}", self.part)?;
+        write_field!(vendor);
+        write_field!(product);
+        write_field!(version);
+        write_field!(update);
+        if self.sw_edition != OwnedComponent::Any
+            || self.target_sw != OwnedComponent::Any
+            || self.target_hw != OwnedComponent::Any
+            || self.other != OwnedComponent::Any
+        {
+            if f.alternate() {
+                write!(
+                    f,
+                    "~{}~{}~{}~{}~{}",
+                    self.edition.as_component().encode_uri(),
+                    self.sw_edition.as_component().encode_uri(),
+                    self.target_sw.as_component().encode_uri(),
+                    self.target_hw.as_component().encode_uri(),
+                    self.other.as_component().encode_uri()
+                )?;
+            } else {
+                write!(
+                    f,
+                    "~{:#}~{:#}~{:#}~{:#}~{:#}",
+                    self.edition.as_component(),
+                    self.sw_edition.as_component(),
+                    self.target_sw.as_component(),
+                    self.target_hw.as_component(),
+                    self.other.as_component()
+                )?;
+            }
+        } else {
+            write_field!(edition);
+        }
+        if !f.sign_aware_zero_pad() || self.language != Language::Any {
+            write!(f, ":{:#}", self.language)?;
+        }
+        Ok(())
+    }
 }
 
 macro_rules! into {
