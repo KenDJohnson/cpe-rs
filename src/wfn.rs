@@ -44,6 +44,7 @@
 
 use std::convert::TryFrom;
 use std::fmt;
+use std::str::FromStr;
 
 use crate::component::{Component, OwnedComponent};
 use crate::cpe::{CpeType, Language};
@@ -474,6 +475,14 @@ impl fmt::Display for OwnedWfn {
         write_field!(target_hw);
         write_field!(other);
         write!(f, "]")
+    }
+}
+
+impl FromStr for OwnedWfn {
+    type Err = CpeError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Wfn::parse(s).map(|i| i.to_owned())
     }
 }
 
