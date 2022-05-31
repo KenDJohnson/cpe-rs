@@ -25,6 +25,7 @@ use crate::wfn::{OwnedWfn, Wfn};
 use std::fmt;
 
 use std::convert::TryFrom;
+use std::str::FromStr;
 
 /// Helper macro to create a `Uri` from literal values.
 #[macro_export]
@@ -417,6 +418,14 @@ impl fmt::Display for OwnedUri {
             write!(f, ":{:#}", self.language)?;
         }
         Ok(())
+    }
+}
+
+impl FromStr for OwnedUri {
+    type Err = CpeError;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Uri::parse(s).map(|i| i.to_owned())
     }
 }
 
