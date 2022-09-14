@@ -254,12 +254,13 @@ impl<'a> Uri<'a> {
             uri
         };
 
-        let uri = if uri.starts_with("cpe:/") {
-            &uri[5..]
-        } else {
-            return Err(CpeError::InvalidPrefix {
-                value: uri.to_owned(),
-            });
+        let uri = match uri.strip_prefix("cpe:/") {
+            Some(u) => u,
+            None => {
+                return Err(CpeError::InvalidPrefix {
+                    value: uri.to_owned(),
+                })
+            }
         };
 
         let mut components = uri.split(':');
@@ -287,7 +288,7 @@ impl<'a> Uri<'a> {
 
         let (edition, sw_edition, target_sw, target_hw, other) = components
             .next()
-            .map(|edition| parse_packed_uri_attribute(edition))
+            .map(parse_packed_uri_attribute)
             .transpose()?
             .unwrap_or_default();
 
