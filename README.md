@@ -24,6 +24,11 @@ with implementations conforming to [CPE22] and possibly prior releases as well.
 
 Source: [\[CPE23-N\]](#\[2\])
 
+As a special exception to section 5.4 of the CPE standard, the `permissive_encoding` feature will
+permit URIs with `\`, `+`, and `!` characters. While not intended for long term operation, this
+feature provides a method to find more egregious issues in CPE URIs while developers fix encoding
+issues for these commonly used characters.
+
 ## References
 
 ###### \[1\]

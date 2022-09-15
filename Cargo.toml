@@ -20,3 +20,4 @@ lazy_static = "1.4"
 [features]
 default = ["display"]
 display = []
+permissive_encoding = []

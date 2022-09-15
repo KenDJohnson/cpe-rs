@@ -30,8 +30,14 @@ pub fn parse_wfn_attribute(value: &str) -> Result<Component> {
     }
 }
 
+#[cfg(not(feature="permissive_encoding"))]
 pub fn validate_uri_attribute(value: &str) -> bool {
     URI_REGEX.is_match(value)
+}
+
+#[cfg(feature="permissive_encoding")]
+pub fn validate_uri_attribute(value: &str) -> bool {
+    PERMISSIVE_URI_REGEX.is_match(value)
 }
 
 pub fn encode_wfn_attribute<'a>(value: &'a Component<'a>) -> Cow<'a, str> {
@@ -172,6 +178,10 @@ lazy_static! {
 
     static ref WFN_ENCODE_REPLACE: Regex = Regex::new(r##"(?P<esc>[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])"##).unwrap();
 
+
+    static ref PERMISSIVE_URI_REGEX: Regex = Regex::new(concat!(
+        r"^(?:(?:%01)+|%02)?(?:[\w\-._+]|(:?\\?(?:\+|!))?|%(?:2[1-9a-f]|3[a-f]|[46]0|[57][b-e]))*(?:(?:%01)+|%02)?$"
+    )).unwrap();
 
     static ref URI_REGEX: Regex = Regex::new(concat!(
         r"^(?:(?:%01)+|%02)?(?:[\w\-._]|%(?:2[1-9a-f]|3[a-f]|[46]0|[57][b-e]))*(?:(?:%01)+|%02)?$"
