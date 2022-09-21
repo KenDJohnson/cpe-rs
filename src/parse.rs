@@ -15,12 +15,12 @@ pub fn validate_wfn_attribute(value: &str) -> bool {
     value != "*" && WFN_REGEX.is_match(value)
 }
 
-pub fn parse_wfn_attribute<'a>(value: &'a str) -> Result<Component<'a>> {
+pub fn parse_wfn_attribute(value: &str) -> Result<Component> {
     if value == "ANY" {
         Ok(Component::Any)
     } else if value == "NA" {
         Ok(Component::NotApplicable)
-    } else if validate_wfn_attribute(&value) {
+    } else if validate_wfn_attribute(value) {
         let value = WFN_REPLACE.replace_all(value, "$esc");
         Ok(Component::Value(value))
     } else {
@@ -30,15 +30,21 @@ pub fn parse_wfn_attribute<'a>(value: &'a str) -> Result<Component<'a>> {
     }
 }
 
+#[cfg(not(feature="permissive_encoding"))]
 pub fn validate_uri_attribute(value: &str) -> bool {
     URI_REGEX.is_match(value)
+}
+
+#[cfg(feature="permissive_encoding")]
+pub fn validate_uri_attribute(value: &str) -> bool {
+    PERMISSIVE_URI_REGEX.is_match(value)
 }
 
 pub fn encode_wfn_attribute<'a>(value: &'a Component<'a>) -> Cow<'a, str> {
     match value {
         Component::Any => Cow::Borrowed("ANY"),
         Component::NotApplicable => Cow::Borrowed("NA"),
-        Component::Value(val) => WFN_ENCODE_REPLACE.replace_all(&val, r"\$esc"),
+        Component::Value(val) => WFN_ENCODE_REPLACE.replace_all(val, r"\$esc"),
     }
 }
 
@@ -79,19 +85,19 @@ pub fn encode_uri_attribute<'a>(value: &'a Component<'a>) -> Cow<'a, str> {
             if val.contains('?') || val.contains('*') {
                 Cow::Owned(
                     percent_encoding::utf8_percent_encode(
-                        &val.replace("?", "%01").replace("*", "%02"),
+                        &val.replace('?', "%01").replace('*', "%02"),
                         &RESERVED,
                     )
                     .to_string(),
                 )
             } else {
-                percent_encoding::utf8_percent_encode(&val, &RESERVED).into()
+                percent_encoding::utf8_percent_encode(val, &RESERVED).into()
             }
         }
     }
 }
 
-pub fn parse_uri_attribute<'a>(value: &'a str) -> Result<Component<'a>> {
+pub fn parse_uri_attribute(value: &str) -> Result<Component> {
     if value.is_empty() {
         Ok(Component::Any)
     } else if value == "-" {
@@ -122,7 +128,7 @@ pub fn parse_uri_attribute<'a>(value: &'a str) -> Result<Component<'a>> {
     }
 }
 
-pub fn parse_packed_uri_attribute<'a>(value: &'a str) -> Result<PackedComponents<'a>> {
+pub fn parse_packed_uri_attribute(value: &str) -> Result<PackedComponents> {
     if value.starts_with('~') {
         let parts = value.split('~').collect::<Vec<_>>();
         if parts.len() != 6 {
@@ -172,6 +178,10 @@ lazy_static! {
 
     static ref WFN_ENCODE_REPLACE: Regex = Regex::new(r##"(?P<esc>[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])"##).unwrap();
 
+
+    static ref PERMISSIVE_URI_REGEX: Regex = Regex::new(concat!(
+        r"^(?:(?:%01)+|%02)?(?:[\w\-._+]|(:?\\?(?:\+|!))?|%(?:2[1-9a-f]|3[a-f]|[46]0|[57][b-e]))*(?:(?:%01)+|%02)?$"
+    )).unwrap();
 
     static ref URI_REGEX: Regex = Regex::new(concat!(
         r"^(?:(?:%01)+|%02)?(?:[\w\-._]|%(?:2[1-9a-f]|3[a-f]|[46]0|[57][b-e]))*(?:(?:%01)+|%02)?$"

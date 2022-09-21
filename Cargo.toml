@@ -1,6 +1,6 @@
 [package]
 name = "cpe"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Ken Johnson <ken.johnso93@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -20,3 +20,4 @@ lazy_static = "1.4"
 [features]
 default = ["display"]
 display = []
+permissive_encoding = []

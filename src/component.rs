@@ -58,7 +58,7 @@ impl<'a> Component<'a> {
     pub fn new(val: &'a str) -> Self {
         if val == "-" || val == "NA" {
             Self::NotApplicable
-        } else if val == "" || val == "ANY" {
+        } else if val.is_empty() || val == "ANY" {
             Self::Any
         } else {
             Self::Value(Cow::Borrowed(val))
@@ -68,7 +68,7 @@ impl<'a> Component<'a> {
     pub fn new_string(val: String) -> Self {
         if val == "-" || val == "NA" {
             Self::NotApplicable
-        } else if val == "" || val == "ANY" {
+        } else if val.is_empty() || val == "ANY" {
             Self::Any
         } else {
             Self::Value(Cow::Owned(val))
