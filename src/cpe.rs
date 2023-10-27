@@ -179,21 +179,10 @@ impl TryFrom<&str> for CpeType {
         if val == "ANY" {
             return Ok(Self::Any);
         }
-        let c = {
-            let c = val.chars().next();
-
-            if c.is_none() {
-                return Err(CpeError::InvalidCpeType {
-                    value: val.to_owned(),
-                });
-            } else {
-                c.unwrap()
-            }
-        };
-        match c {
-            'h' => Ok(Self::Hardware),
-            'o' => Ok(Self::OperatingSystem),
-            'a' => Ok(Self::Application),
+        match val.chars().next() {
+            Some('h') => Ok(Self::Hardware),
+            Some('o') => Ok(Self::OperatingSystem),
+            Some('a') => Ok(Self::Application),
             _ => Err(CpeError::InvalidCpeType {
                 value: val.to_owned(),
             }),
