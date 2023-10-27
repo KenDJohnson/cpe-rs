@@ -182,9 +182,13 @@ impl TryFrom<&str> for CpeType {
         let c = {
             let c = val.chars().next();
 
-            //TODO error + check for next None
-
-            c.unwrap()
+            if c.is_none() {
+                return Err(CpeError::InvalidCpeType {
+                    value: val.to_owned(),
+                });
+            } else {
+                c.unwrap()
+            }
         };
         match c {
             'h' => Ok(Self::Hardware),
@@ -211,5 +215,15 @@ impl fmt::Display for CpeType {
             Self::OperatingSystem => write!(f, "o"),
             Self::Application => write!(f, "a"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_missing_type() {
+        assert!(CpeType::try_from("cpe:/:missing:cpe:::type").is_err());
     }
 }
