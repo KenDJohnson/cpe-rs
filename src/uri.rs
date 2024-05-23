@@ -25,6 +25,7 @@ use crate::wfn::{OwnedWfn, Wfn};
 use std::fmt;
 
 use std::convert::TryFrom;
+use std::fmt::Write;
 use std::str::FromStr;
 
 /// Helper macro to create a `Uri` from literal values.
@@ -377,6 +378,8 @@ impl fmt::Display for OwnedUri {
                     } else {
                         write!(f, ":{:#}", self.$field.as_component())?;
                     }
+                } else {
+                    f.write_char(':')?;
                 }
             };
         }
@@ -461,6 +464,7 @@ into!(OwnedWfn);
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::cpe::Cpe;
 
     #[test]
     fn basic_uri() {
@@ -518,5 +522,21 @@ mod test {
                 .unwrap()
                 .into()
         );
+    }
+
+    #[test]
+    fn test_zero_with_empty() {
+        let original = "cpe:/a:foo:bar:1.2::x";
+        let parsed = OwnedUri::from_str(original).unwrap();
+
+        let formatted = format!("{parsed:0}");
+        let reparsed = OwnedUri::from_str(&formatted).unwrap();
+
+        assert_eq!(parsed.part(), reparsed.part());
+        assert_eq!(parsed.vendor(), reparsed.vendor());
+        assert_eq!(parsed.product(), reparsed.product());
+        assert_eq!(parsed.version(), reparsed.version());
+        assert_eq!(parsed.update(), reparsed.update());
+        assert_eq!(parsed.edition(), reparsed.edition());
     }
 }
