@@ -164,6 +164,7 @@ pub enum CpeType {
     Hardware,
     OperatingSystem,
     Application,
+    Empty,
 }
 
 impl Default for CpeType {
@@ -176,17 +177,18 @@ impl TryFrom<&str> for CpeType {
     type Error = CpeError;
 
     fn try_from(val: &str) -> Result<Self> {
-        if val == "ANY" {
-            return Ok(Self::Any);
-        }
-        match val.chars().next() {
-            Some('h') => Ok(Self::Hardware),
-            Some('o') => Ok(Self::OperatingSystem),
-            Some('a') => Ok(Self::Application),
-            _ => Err(CpeError::InvalidCpeType {
-                value: val.to_owned(),
-            }),
-        }
+        Ok(match val {
+            "ANY" => Self::Any,
+            "h" => Self::Hardware,
+            "o" => Self::OperatingSystem,
+            "a" => Self::Application,
+            "" => Self::Empty,
+            _ => {
+                return Err(CpeError::InvalidCpeType {
+                    value: val.to_owned(),
+                })
+            }
+        })
     }
 }
 
@@ -203,6 +205,7 @@ impl fmt::Display for CpeType {
             Self::Hardware => write!(f, "h"),
             Self::OperatingSystem => write!(f, "o"),
             Self::Application => write!(f, "a"),
+            Self::Empty => Ok(()),
         }
     }
 }
@@ -213,6 +216,11 @@ mod tests {
 
     #[test]
     fn test_missing_type() {
-        assert!(CpeType::try_from("cpe:/:missing:cpe:::type").is_err());
+        assert!(CpeType::try_from("").is_ok());
+    }
+
+    #[test]
+    fn test_invalid_type() {
+        assert!(CpeType::try_from("x").is_err());
     }
 }
