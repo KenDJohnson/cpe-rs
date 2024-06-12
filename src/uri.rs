@@ -539,4 +539,19 @@ mod test {
         assert_eq!(parsed.update(), reparsed.update());
         assert_eq!(parsed.edition(), reparsed.edition());
     }
+
+    #[test]
+    fn empty_part() {
+        assert_eq!(
+            Uri::parse("cpe:/:microsoft:internet_explorer:8.0.6001:beta").unwrap(),
+            Uri::builder()
+                .part("")
+                .vendor("microsoft")
+                .product("internet_explorer")
+                .version("8.0.6001")
+                .update("beta")
+                .validate()
+                .unwrap()
+        );
+    }
 }
