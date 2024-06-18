@@ -12,16 +12,11 @@ use std::str::FromStr;
 /// CPE Language value
 ///
 /// May be "ANY", or a valid RFC-5646 language tag.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum Language {
+    #[default]
     Any,
     Language(LanguageTag),
-}
-
-impl Default for Language {
-    fn default() -> Self {
-        Language::Any
-    }
 }
 
 impl FromStr for Language {

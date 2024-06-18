@@ -111,7 +111,7 @@ pub fn parse_uri_attribute(value: &str) -> Result<Component> {
                     source,
                     value: value.to_owned(),
                 })?;
-            Cow::Owned((&*decoded).to_owned())
+            Cow::Owned((*decoded).to_owned())
         } else {
             percent_encoding::percent_decode_str(value)
                 .decode_utf8()

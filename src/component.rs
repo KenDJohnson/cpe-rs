@@ -23,8 +23,9 @@ pub type PackedComponents<'a> = (
     Component<'a>,
 );
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum Component<'a> {
+    #[default]
     Any,
     NotApplicable,
     Value(Cow<'a, str>),
@@ -45,12 +46,6 @@ impl fmt::Display for Component<'_> {
                 Self::Value(val) => write!(f, "{}", val),
             }
         }
-    }
-}
-
-impl Default for Component<'_> {
-    fn default() -> Self {
-        Component::Any
     }
 }
 
@@ -136,7 +131,7 @@ impl From<&Component<'_>> for OwnedComponent {
         match attribute {
             Component::Any => Self::Any,
             Component::NotApplicable => Self::NotApplicable,
-            Component::Value(value) => Self::Value((*value).to_owned().to_string()),
+            Component::Value(value) => Self::Value(value.clone().into_owned()),
         }
     }
 }
