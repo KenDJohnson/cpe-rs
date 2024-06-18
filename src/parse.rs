@@ -30,12 +30,12 @@ pub fn parse_wfn_attribute(value: &str) -> Result<Component> {
     }
 }
 
-#[cfg(not(feature="permissive_encoding"))]
+#[cfg(not(feature = "permissive_encoding"))]
 pub fn validate_uri_attribute(value: &str) -> bool {
     URI_REGEX.is_match(value)
 }
 
-#[cfg(feature="permissive_encoding")]
+#[cfg(feature = "permissive_encoding")]
 pub fn validate_uri_attribute(value: &str) -> bool {
     PERMISSIVE_URI_REGEX.is_match(value)
 }
