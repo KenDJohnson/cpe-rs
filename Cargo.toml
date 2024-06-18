@@ -1,12 +1,12 @@
 [package]
 name = "cpe"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Ken Johnson <ken.johnso93@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 keywords = ["cpe"]
 description = "CPE 2.2 and 2.3 handling in Rust"
-repository = "https://github.com/johnso51/cpe-rs"
+repository = "https://github.com/KenDJohnson/cpe-rs"
 documentation = "https://docs.rs/cpe"
 rust-version = "1.65"
 
