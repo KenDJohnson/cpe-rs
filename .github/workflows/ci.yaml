@@ -36,6 +36,19 @@ jobs:
       - uses: actions-rs/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/install
+        with:
+          crate: cargo-docs-rs
+      - run: cargo docs-rs
+
   check:
     name: check and run tests
     runs-on: ubuntu-latest
