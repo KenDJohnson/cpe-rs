@@ -144,8 +144,30 @@ impl<'a> CpeBuilder<'a, Uri<'a>> {
         add_field!(version, set_version);
         add_field!(update, set_update);
         add_field!(edition, set_edition);
-        add_field!(language, set_product);
+        add_field!(language, set_language);
 
         Ok(uri)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn simple_builder() {
+        let mut cpe = Uri::builder();
+        cpe.part("a")
+            .vendor("acme")
+            .product("tools")
+            .version("1.0.0")
+            .update("u1")
+            .edition("e1")
+            .language("en");
+
+        assert_eq!(
+            cpe.validate().unwrap().to_string(),
+            "cpe:/a:acme:tools:1.0.0:u1:e1:en"
+        );
     }
 }
