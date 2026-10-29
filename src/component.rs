@@ -78,6 +78,10 @@ impl<'a> Component<'a> {
         parse_uri_attribute(value)
     }
 
+    pub fn parse_fsb_field(value: &'a str) -> Result<Self> {
+        parse_fsb_attribute(value)
+    }
+
     pub fn to_owned(&self) -> OwnedComponent {
         self.into()
     }
@@ -89,19 +93,18 @@ impl<'a> Component<'a> {
     pub fn encode_wfn(&'a self) -> Cow<'a, str> {
         crate::parse::encode_wfn_attribute(self)
     }
+
+    pub fn encode_fsb(&'a self) -> Cow<'a, str> {
+        crate::parse::encode_fsb_attribute(self)
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum OwnedComponent {
+    #[default]
     Any,
     NotApplicable,
     Value(String),
-}
-
-impl Default for OwnedComponent {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 impl OwnedComponent {
@@ -113,7 +116,7 @@ impl OwnedComponent {
         Component::parse_uri_field(value).map(|component| component.into())
     }
 
-    pub fn as_component(&self) -> Component {
+    pub fn as_component(&self) -> Component<'_> {
         match self {
             Self::Any => Component::Any,
             Self::NotApplicable => Component::NotApplicable,

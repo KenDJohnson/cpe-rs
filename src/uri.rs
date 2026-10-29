@@ -19,6 +19,7 @@ use crate::builder::CpeBuilder;
 use crate::component::{Component, OwnedComponent};
 use crate::cpe::{CpeType, Language};
 use crate::error::{CpeError, Result};
+use crate::fsb::Fsb;
 use crate::parse::{parse_packed_uri_attribute, parse_uri_attribute};
 use crate::wfn::{OwnedWfn, Wfn};
 
@@ -51,7 +52,7 @@ macro_rules! uri {
 /// the components when `#` is used to specify an alternate.
 ///
 ///```
-/// use cpe::uri::Uri;
+/// use cpe_rs_fork::uri::Uri;
 /// let uri = Uri::builder()
 ///           .part("a")
 ///           .vendor("foo%21")
@@ -65,7 +66,7 @@ macro_rules! uri {
 ///
 /// Additionally, the `0` for zero-padding integers can be used to omit default "*" fields.
 ///```
-/// use cpe::uri::Uri;
+/// use cpe_rs_fork::uri::Uri;
 /// let uri = Uri::builder()
 ///           .part("a")
 ///           .vendor("foo%21")
@@ -150,7 +151,7 @@ impl<'a> Uri<'a> {
     /// Create a `CpeBuilder` struct to construct a new Wfn.
     ///
     /// ```
-    /// use cpe::uri::Uri;
+    /// use cpe_rs_fork::uri::Uri;
     ///
     /// let cpe: Uri = Uri::builder()
     ///               .part("a")
@@ -347,6 +348,42 @@ impl<'a> From<&Wfn<'a>> for Uri<'a> {
             target_sw: wfn.target_sw.clone(),
             target_hw: wfn.target_hw.clone(),
             other: wfn.other.clone(),
+        }
+    }
+}
+
+impl<'a> From<Fsb<'a>> for Uri<'a> {
+    fn from(fsb: Fsb<'a>) -> Self {
+        Self {
+            part: fsb.part,
+            vendor: fsb.vendor,
+            product: fsb.product,
+            version: fsb.version,
+            update: fsb.update,
+            edition: fsb.edition,
+            language: fsb.language,
+            sw_edition: fsb.sw_edition,
+            target_sw: fsb.target_sw,
+            target_hw: fsb.target_hw,
+            other: fsb.other,
+        }
+    }
+}
+
+impl<'a> From<&Fsb<'a>> for Uri<'a> {
+    fn from(fsb: &Fsb<'a>) -> Self {
+        Self {
+            part: fsb.part,
+            vendor: fsb.vendor.clone(),
+            product: fsb.product.clone(),
+            version: fsb.version.clone(),
+            update: fsb.update.clone(),
+            edition: fsb.edition.clone(),
+            language: fsb.language.clone(),
+            sw_edition: fsb.sw_edition.clone(),
+            target_sw: fsb.target_sw.clone(),
+            target_hw: fsb.target_hw.clone(),
+            other: fsb.other.clone(),
         }
     }
 }

@@ -7,15 +7,15 @@ use crate::component::{Component, PackedComponents};
 use crate::error::{CpeError, Result};
 
 use std::borrow::Cow;
+use std::sync::LazyLock;
 
-use lazy_static::lazy_static;
 use regex::Regex;
 
 pub fn validate_wfn_attribute(value: &str) -> bool {
     value != "*" && WFN_REGEX.is_match(value)
 }
 
-pub fn parse_wfn_attribute(value: &str) -> Result<Component> {
+pub fn parse_wfn_attribute(value: &str) -> Result<Component<'_>> {
     if value == "ANY" {
         Ok(Component::Any)
     } else if value == "NA" {
@@ -28,6 +28,60 @@ pub fn parse_wfn_attribute(value: &str) -> Result<Component> {
             value: value.to_owned(),
         })
     }
+}
+
+fn ends_with_escaped_special_chars(value: &str) -> bool {
+    let mut characters = value.chars().rev();
+    if !matches!(characters.next(), Some('*' | '?')) {
+        return false;
+    }
+
+    let mut escape_chars = 0;
+    for c in characters {
+        if c == '\\' {
+            escape_chars += 1;
+        } else {
+            break;
+        }
+    }
+    escape_chars % 2 != 0
+}
+
+fn has_escaped_special_chars_at_boundary(value: &str) -> bool {
+    [r"\*", r"\?"]
+        .iter()
+        .any(|wildcard| value.starts_with(wildcard))
+        || ends_with_escaped_special_chars(value)
+}
+
+/// Validates an attribute in an FSB
+///
+/// # Errors
+/// 
+/// * Returns [CpeError::InvalidAttribute] if invalid or unescaped characters are used
+/// * Returns [CpeError::UnsupportedCircumfixSpecialCharacters] if the string starts or ends with
+///   '\?' or '\*', as the library currently does not support preserving that escaping.
+///
+pub fn validate_fsb_attribute(value: &str) -> Result<()> {
+    if !FSB_REGEX.is_match(value) {
+        Err(CpeError::InvalidAttribute {
+            value: value.to_owned(),
+        })
+    } else if has_escaped_special_chars_at_boundary(value) {
+        Err(CpeError::UnsupportedCircumfixSpecialCharacters {
+            value: value.to_string(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+static FSB_LANGUAGE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:[A-Za-z]{2,3})(?:-(?:[A-Za-z]{2}|[0-9]{3}))?$").unwrap());
+
+/// Validates the language attribute within an FSB against the specification's regex
+pub fn validate_fsb_language(value: &str) -> bool {
+    FSB_LANGUAGE_REGEX.is_match(value) || value == "*"
 }
 
 #[cfg(not(feature = "permissive_encoding"))]
@@ -97,7 +151,7 @@ pub fn encode_uri_attribute<'a>(value: &'a Component<'a>) -> Cow<'a, str> {
     }
 }
 
-pub fn parse_uri_attribute(value: &str) -> Result<Component> {
+pub fn parse_uri_attribute(value: &str) -> Result<Component<'_>> {
     if value.is_empty() {
         Ok(Component::Any)
     } else if value == "-" {
@@ -128,7 +182,7 @@ pub fn parse_uri_attribute(value: &str) -> Result<Component> {
     }
 }
 
-pub fn parse_packed_uri_attribute(value: &str) -> Result<PackedComponents> {
+pub fn parse_packed_uri_attribute(value: &str) -> Result<PackedComponents<'_>> {
     if value.starts_with('~') {
         let parts = value.split('~').collect::<Vec<_>>();
         if parts.len() != 6 {
@@ -156,43 +210,96 @@ pub fn parse_packed_uri_attribute(value: &str) -> Result<PackedComponents> {
     }
 }
 
-lazy_static! {
-    static ref WFN_REGEX: Regex = {
-        Regex::new(concat!(
-            "^(?:",                                                                 // top group
-                "(?:",                                                              // body group
-                    "(?:",                                                          // body group 1
-                        r##"(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~?*])"##,        // body1
-                        r##"(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])*"##,     // body2
-                    ")",                                                            // close body group 1
-                    r##"|(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*]){2,}"##,     // or 2*body
-                ")",                                                                // close body group
-                r"|(?:(?:\?{1,}|\*)",                                               // or spec_chrs
-                r##"(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])*)"##,            // body2
-            ")",                                                                    // close top group
-            r"(?:\?{1,}|\*)?$",                                                     // optional special
-        )).unwrap()
-    };
+static WFN_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(concat!(
+        "^(?:",                                                     // top group
+        "(?:",                                                      // body group
+        "(?:",                                                      // body group 1
+        r##"(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~?*])"##,        // body1
+        r##"(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])*"##,     // body2
+        ")",                                                        // close body group 1
+        r##"|(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*]){2,}"##, // or 2*body
+        ")",                                                        // close body group
+        r"|(?:(?:\?{1,}|\*)",                                       // or spec_chrs
+        r##"(?:\w|\\[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])*)"##,    // body2
+        ")",                                                        // close top group
+        r"(?:\?{1,}|\*)?$",                                         // optional special
+    ))
+    .unwrap()
+});
 
-    static ref WFN_REPLACE: Regex = Regex::new(r##"\\(?P<esc>[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])"##).unwrap();
+static WFN_REPLACE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r##"\\(?P<esc>[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])"##).unwrap());
+static WFN_ENCODE_REPLACE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r##"(?P<esc>[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])"##).unwrap());
 
-    static ref WFN_ENCODE_REPLACE: Regex = Regex::new(r##"(?P<esc>[\\!"#$%&'()+,./:;<=>@\[\]^`{|}~\-?*])"##).unwrap();
-
-
-    static ref PERMISSIVE_URI_REGEX: Regex = Regex::new(concat!(
+#[cfg(feature = "permissive_encoding")]
+static PERMISSIVE_URI_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?:(?:%01)+|%02)?(?:[\w\-._+]|(:?\\?(?:\+|!))?|%(?:2[1-9a-f]|3[a-f]|[46]0|[57][b-e]))*(?:(?:%01)+|%02)?$").unwrap()
+});
+static URI_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
         r"^(?:(?:%01)+|%02)?(?:[\w\-._+]|(:?\\?(?:\+|!))?|%(?:2[1-9a-f]|3[a-f]|[46]0|[57][b-e]))*(?:(?:%01)+|%02)?$"
-    )).unwrap();
+    )
+    .unwrap()
+});
 
-    static ref URI_REGEX: Regex = Regex::new(concat!(
-        r"^(?:(?:%01)+|%02)?(?:[\w\-._]|%(?:2[1-9a-f]|3[a-f]|[46]0|[57][b-e]))*(?:(?:%01)+|%02)?$"
-    )).unwrap();
+static FSB_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r##"^(?:(?:(?:\?)+|\*)?(?:[A-Za-z0-9_.-]|\\[\\?*!"#$%&'()+,/:;<=>@\[\]^`{|}~])+(?:(?:\?)+|\*)?|[\*-])$"##).unwrap()
+});
+static FSB_QUOTED_CHARACTER_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r##"\\(?P<esc>[\\?*!"#$%&'()+,/:;<=>@\[\]^`{|}~])"##).unwrap());
+static FSB_ENCODE_CHARACTER_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r##"(?P<esc>[\\?*!"#$%&'()+,/:;<=>@\[\]^`{|}~])"##).unwrap());
+static FSB_LEADING_WILDCARD_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?P<wildcards>(?:\\\?)+|\\\*)").unwrap());
+static FSB_TRAILING_WILDCARD_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?P<wildcards>(?:\\\?)+|\\\*)$").unwrap());
+
+fn encode_fsb_value<'a>(value: &Cow<'a, str>) -> Cow<'a, str> {
+    let value = value.as_ref();
+    let encoded = FSB_ENCODE_CHARACTER_REGEX.replace_all(value, r"\$esc");
+    let encoded = FSB_LEADING_WILDCARD_REGEX
+        .replace_all(&encoded, |captures: &regex::Captures<'_>| {
+            captures["wildcards"].replace('\\', "")
+        });
+
+    let encoded = FSB_TRAILING_WILDCARD_REGEX
+        .replace_all(&encoded, |captures: &regex::Captures<'_>| {
+            captures["wildcards"].replace('\\', "")
+        });
+    Cow::Owned(encoded.into_owned())
+}
+
+/// Encodes an FSB attribute according to the specification, leading and trailing special characters
+/// are preserved unencoded, all others are escaped using '\'.
+pub fn encode_fsb_attribute<'a>(value: &'a Component<'a>) -> Cow<'a, str> {
+    match value {
+        Component::Any => Cow::Borrowed("*"),
+        Component::NotApplicable => Cow::Borrowed("-"),
+        Component::Value(val) => encode_fsb_value(val),
+    }
+}
+
+/// Parses an FSB attribute, escaped characters are unescaped.
+pub fn parse_fsb_attribute(value: &str) -> Result<Component<'_>> {
+    if value == "*" {
+        Ok(Component::Any)
+    } else if value == "-" {
+        Ok(Component::NotApplicable)
+    } else {
+        validate_fsb_attribute(value)?;
+        Ok(Component::Value(
+            FSB_QUOTED_CHARACTER_REGEX.replace_all(value, "$esc"),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    macro_rules! ok_av_re {
+    macro_rules! ok_wfn_av_re {
         ($val:expr) => {
             let res = parse_wfn_attribute($val).unwrap();
             assert_eq!(res, Component::Value(Cow::Borrowed($val)))
@@ -214,7 +321,7 @@ mod test {
         };
     }
 
-    macro_rules! err_av_re {
+    macro_rules! err_wfn_av_re {
         ($val:expr) => {
             assert!(!validate_wfn_attribute($val));
         };
@@ -222,42 +329,42 @@ mod test {
 
     #[test]
     fn wfn_re() {
-        ok_av_re!(r"foo\-bar", "foo-bar");
-        ok_av_re!("Acrobat_Reader");
-        ok_av_re!(r#"\"oh_my\!\""#, r#""oh_my!""#);
-        ok_av_re!(r#"g\+\+"#, "g++");
-        ok_av_re!(r#"9\.?"#, "9.?");
-        ok_av_re!("sr*");
-        ok_av_re!(r"big\$money", "big$money");
-        ok_av_re!(r"foo\:bar", "foo:bar");
-        ok_av_re!(r"back\\slash_software", r"back\slash_software");
-        ok_av_re!(r"with_quoted\~tilde", "with_quoted~tilde");
-        ok_av_re!("*SOFT*");
-        ok_av_re!(r"8\.??", "8.??");
-        ok_av_re!(r"*8\.??", "*8.??");
-        ok_av_re!("ANY", ANY);
-        ok_av_re!("NA", NA);
+        ok_wfn_av_re!(r"foo\-bar", "foo-bar");
+        ok_wfn_av_re!("Acrobat_Reader");
+        ok_wfn_av_re!(r#"\"oh_my\!\""#, r#""oh_my!""#);
+        ok_wfn_av_re!(r#"g\+\+"#, "g++");
+        ok_wfn_av_re!(r#"9\.?"#, "9.?");
+        ok_wfn_av_re!("sr*");
+        ok_wfn_av_re!(r"big\$money", "big$money");
+        ok_wfn_av_re!(r"foo\:bar", "foo:bar");
+        ok_wfn_av_re!(r"back\\slash_software", r"back\slash_software");
+        ok_wfn_av_re!(r"with_quoted\~tilde", "with_quoted~tilde");
+        ok_wfn_av_re!("*SOFT*");
+        ok_wfn_av_re!(r"8\.??", "8.??");
+        ok_wfn_av_re!(r"*8\.??", "*8.??");
+        ok_wfn_av_re!("ANY", ANY);
+        ok_wfn_av_re!("NA", NA);
     }
 
     #[test]
-    fn re_failures() {
-        err_av_re!("foo\"");
-        err_av_re!(r"foo-bar");
-        err_av_re!("Acrobat Reader");
-        err_av_re!(r#""oh_my\!""#);
-        err_av_re!(r#"\"oh_my!\""#);
-        err_av_re!(r#"g++"#);
-        err_av_re!(r#"9.?"#);
-        err_av_re!(r"big$money");
-        err_av_re!(r"foo:bar");
-        err_av_re!(r"back\slack_software");
-        err_av_re!(r"with_quoted~tidle");
-        err_av_re!(r"8.??");
-        err_av_re!(r"8\.?*");
-        err_av_re!(r"8\.**");
-        err_av_re!(r"8\.*?");
-        err_av_re!("*");
-        err_av_re!(r"\-");
+    fn wfn_re_failures() {
+        err_wfn_av_re!("foo\"");
+        err_wfn_av_re!(r"foo-bar");
+        err_wfn_av_re!("Acrobat Reader");
+        err_wfn_av_re!(r#""oh_my\!""#);
+        err_wfn_av_re!(r#"\"oh_my!\""#);
+        err_wfn_av_re!(r#"g++"#);
+        err_wfn_av_re!(r#"9.?"#);
+        err_wfn_av_re!(r"big$money");
+        err_wfn_av_re!(r"foo:bar");
+        err_wfn_av_re!(r"back\slack_software");
+        err_wfn_av_re!(r"with_quoted~tidle");
+        err_wfn_av_re!(r"8.??");
+        err_wfn_av_re!(r"8\.?*");
+        err_wfn_av_re!(r"8\.**");
+        err_wfn_av_re!(r"8\.*?");
+        err_wfn_av_re!("*");
+        err_wfn_av_re!(r"\-");
     }
 
     macro_rules! ok_uri_re {
@@ -340,5 +447,112 @@ mod test {
         );
         assert!(parse_packed_uri_attribute("a~b~c~d~e").is_err());
         assert!(parse_packed_uri_attribute("~a~b~c~d~e~").is_err());
+    }
+
+    macro_rules! ok_fsb_av_re_parse {
+        ($val:expr) => {
+            let res = parse_fsb_attribute($val).unwrap();
+            assert_eq!(res, Component::Value(Cow::Borrowed($val)))
+        };
+        ($val:expr, ANY) => {
+            let res = parse_fsb_attribute($val).unwrap();
+            assert_eq!(res, Component::Any)
+        };
+        ($val:expr, NA) => {
+            let res = parse_fsb_attribute($val).unwrap();
+            assert_eq!(res, Component::NotApplicable)
+        };
+        ($val:expr, $exp:literal) => {
+            let res = parse_fsb_attribute($val).unwrap();
+            assert_eq!(
+                res,
+                Component::Value(std::borrow::Cow::Owned($exp.to_owned()))
+            )
+        };
+    }
+
+    macro_rules! ok_fsb_av_re_encode {
+        ($val:expr) => {
+            let res = encode_fsb_attribute(&Component::Value(Cow::Borrowed($val)));
+            assert_eq!(res, $val)
+        };
+        (ANY, $val:expr) => {
+            let res = encode_fsb_attribute(&Component::Any);
+            assert_eq!(res, $val)
+        };
+        (NA, $val:expr) => {
+            let res = encode_fsb_attribute(&Component::NotApplicable);
+            assert_eq!(res, $val)
+        };
+        ($val:expr, $exp:literal) => {
+            let res = encode_fsb_attribute(&Component::Value(Cow::Borrowed($val)));
+            assert_eq!(res, $exp)
+        };
+    }
+
+    macro_rules! err_fsb_av_re {
+        ($val:expr) => {
+            assert!(validate_fsb_attribute($val).is_err());
+        };
+    }
+
+    #[test]
+    fn fsb_re_parse() {
+        ok_fsb_av_re_parse!("foo-bar");
+        ok_fsb_av_re_parse!("Acrobat_Reader");
+        ok_fsb_av_re_parse!(r#"\"oh_my\!\""#, r#""oh_my!""#);
+        ok_fsb_av_re_parse!(r"g\+\+", r"g++");
+        ok_fsb_av_re_parse!(r"9.?", "9.?");
+        ok_fsb_av_re_parse!(r"big\$money", r"big$money");
+        ok_fsb_av_re_parse!(r"foo\:bar", r"foo:bar");
+        ok_fsb_av_re_parse!(r"back\\slash_software", r"back\slash_software");
+        ok_fsb_av_re_parse!(r"foo\\bar", r"foo\bar");
+        ok_fsb_av_re_parse!(r"with_quoted\~tilde", r"with_quoted~tilde");
+        ok_fsb_av_re_parse!(r"*SOFT*");
+        ok_fsb_av_re_parse!(r"8.??");
+        ok_fsb_av_re_parse!(r"8.\\?", r"8.\?");
+        ok_fsb_av_re_parse!(r"8.\\\\?", r"8.\\?");
+        ok_fsb_av_re_parse!("*", ANY);
+        ok_fsb_av_re_parse!("-", NA);
+        ok_fsb_av_re_parse!(r"\\\*foo", r"\*foo");
+    }
+
+    #[test]
+    fn fsb_re_encode() {
+        ok_fsb_av_re_encode!("foo-bar");
+        ok_fsb_av_re_encode!("Acrobat_Reader");
+        ok_fsb_av_re_encode!(r#""oh_my!""#, r#"\"oh_my\!\""#);
+        ok_fsb_av_re_encode!(r"g++", r"g\+\+");
+        ok_fsb_av_re_encode!("9.?", r"9.?");
+        ok_fsb_av_re_encode!("sr*");
+        ok_fsb_av_re_encode!(r"big$money", r"big\$money");
+        ok_fsb_av_re_encode!(r"foo:bar", r"foo\:bar");
+        ok_fsb_av_re_encode!(r"back\slash_software", r"back\\slash_software");
+        ok_fsb_av_re_encode!(r"foo\bar", r"foo\\bar");
+        ok_fsb_av_re_encode!(r"with_quoted~tilde", r"with_quoted\~tilde");
+        ok_fsb_av_re_encode!(r"*SOFT*");
+        ok_fsb_av_re_encode!(r"8.??");
+        ok_fsb_av_re_encode!(ANY, "*");
+        ok_fsb_av_re_encode!(NA, "-");
+    }
+
+    #[test]
+    fn fsb_re_failures() {
+        err_fsb_av_re!("Acrobat Reader");
+        err_fsb_av_re!(r#""oh_my\!""#);
+        err_fsb_av_re!(r#"\"oh_my!\""#);
+        err_fsb_av_re!(r#"g++"#);
+        err_fsb_av_re!(r"big$money");
+        err_fsb_av_re!(r"foo:bar");
+        err_fsb_av_re!(r"back\slack_software");
+        err_fsb_av_re!(r"with_quoted~tidle");
+        err_fsb_av_re!(r"8\.?*");
+        err_fsb_av_re!(r"8\.**");
+        err_fsb_av_re!(r"8\.*?");
+        err_fsb_av_re!(r"\-");
+        err_fsb_av_re!(r"sr\*");
+        err_fsb_av_re!(r"8.\?\?");
+        err_fsb_av_re!(r"\*sr");
+        err_fsb_av_re!(r"\?sr");
     }
 }

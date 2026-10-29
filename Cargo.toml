@@ -1,14 +1,13 @@
 [package]
-name = "cpe"
-version = "0.1.4"
-authors = ["Ken Johnson <ken.johnso93@gmail.com>"]
+name = "cpe-rs-fork"
+version = "0.2.0"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 keywords = ["cpe"]
 description = "CPE 2.2 and 2.3 handling in Rust"
-repository = "https://github.com/KenDJohnson/cpe-rs"
-documentation = "https://docs.rs/cpe"
-rust-version = "1.65"
+repository = "https://github.com/Gronner/cpe-rs"
+documentation = "https://docs.rs/cpe-rs-fork"
+rust-version = "1.80"
 
 [dependencies]
 thiserror = "1.0"
@@ -16,7 +15,6 @@ language-tags = "0.3"
 percent-encoding = "2.1"
 derive_builder = "0.9"
 regex = "1.4"
-lazy_static = "1.4"
 
 [features]
 default = ["display"]

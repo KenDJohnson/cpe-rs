@@ -1,6 +1,7 @@
 //! Builder structs for Uri and Wfn CPE values.
 
 use crate::error::Result;
+use crate::fsb::Fsb;
 use crate::uri::Uri;
 use crate::wfn::Wfn;
 
@@ -147,6 +148,60 @@ impl<'a> CpeBuilder<'a, Uri<'a>> {
         add_field!(language, set_language);
 
         Ok(uri)
+    }
+}
+
+impl<'a> CpeBuilder<'a, Fsb<'a>> {
+    /// Parse the strings set in the builder as Fsb attribute values, validating
+    /// their contents.
+    pub fn validate(&self) -> Result<Fsb<'a>> {
+        let mut fsb = Fsb::new();
+        macro_rules! add_field {
+            ($field:ident, $setter:ident) => {
+                if let Some($field) = self.$field {
+                    fsb.$setter($field)?;
+                } else {
+                    fsb.$setter("*")?;
+                }
+            };
+        }
+        add_field!(part, set_part);
+        add_field!(vendor, set_vendor);
+        add_field!(product, set_product);
+        add_field!(version, set_version);
+        add_field!(update, set_update);
+        add_field!(language, set_language);
+        add_field!(edition, set_edition);
+        add_field!(sw_edition, set_sw_edition);
+        add_field!(target_sw, set_target_sw);
+        add_field!(target_hw, set_target_hw);
+        add_field!(other, set_other);
+
+        Ok(fsb)
+    }
+
+    /// Set the software edition.
+    pub fn sw_edition<'b>(&'b mut self, sw_edition: &'a str) -> &'b mut Self {
+        self.sw_edition = Some(sw_edition);
+        self
+    }
+
+    /// Set the target software.
+    pub fn target_sw<'b>(&'b mut self, target_sw: &'a str) -> &'b mut Self {
+        self.target_sw = Some(target_sw);
+        self
+    }
+
+    /// Set the target hardware attribute.
+    pub fn target_hw<'b>(&'b mut self, target_hw: &'a str) -> &'b mut Self {
+        self.target_hw = Some(target_hw);
+        self
+    }
+
+    /// Set the other attribute.
+    pub fn other<'b>(&'b mut self, other: &'a str) -> &'b mut Self {
+        self.other = Some(other);
+        self
     }
 }
 

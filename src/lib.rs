@@ -7,6 +7,7 @@ pub mod builder;
 pub mod component;
 pub mod cpe;
 pub mod error;
+pub mod fsb;
 pub mod parse;
 pub mod uri;
 pub mod wfn;

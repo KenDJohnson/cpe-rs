@@ -3,6 +3,7 @@ use language_tags::LanguageTag;
 
 use crate::component::Component;
 use crate::error::{CpeError, Result};
+use crate::fsb::{Fsb, OwnedFsb};
 use crate::uri::*;
 use crate::wfn::*;
 
@@ -11,7 +12,7 @@ use std::str::FromStr;
 
 /// CPE Language value
 ///
-/// May be "ANY", or a valid RFC-5646 language tag.
+/// May be "ANY", "*", or a valid RFC-5646 language tag.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum Language {
     #[default]
@@ -22,7 +23,7 @@ pub enum Language {
 impl FromStr for Language {
     type Err = CpeError;
     fn from_str(s: &str) -> Result<Self> {
-        if s == "ANY" {
+        if s == "ANY" || s == "*" {
             Ok(Self::Any)
         } else {
             Ok(Self::Language(s.parse()?))
@@ -53,16 +54,16 @@ impl fmt::Display for Language {
 /// required decoding, using this trait may result in a string clone.
 pub trait Cpe {
     fn part(&self) -> CpeType;
-    fn vendor(&self) -> Component;
-    fn product(&self) -> Component;
-    fn version(&self) -> Component;
-    fn update(&self) -> Component;
-    fn edition(&self) -> Component;
+    fn vendor(&self) -> Component<'_>;
+    fn product(&self) -> Component<'_>;
+    fn version(&self) -> Component<'_>;
+    fn update(&self) -> Component<'_>;
+    fn edition(&self) -> Component<'_>;
     fn language(&self) -> &Language;
-    fn sw_edition(&self) -> Component;
-    fn target_sw(&self) -> Component;
-    fn target_hw(&self) -> Component;
-    fn other(&self) -> Component;
+    fn sw_edition(&self) -> Component<'_>;
+    fn target_sw(&self) -> Component<'_>;
+    fn target_hw(&self) -> Component<'_>;
+    fn other(&self) -> Component<'_>;
 }
 
 macro_rules! impl_cpe {
@@ -71,34 +72,34 @@ macro_rules! impl_cpe {
             fn part(&self) -> CpeType {
                 self.part
             }
-            fn vendor(&self) -> Component {
+            fn vendor(&self) -> Component<'_> {
                 self.vendor.as_component()
             }
-            fn product(&self) -> Component {
+            fn product(&self) -> Component<'_> {
                 self.product.as_component()
             }
-            fn version(&self) -> Component {
+            fn version(&self) -> Component<'_> {
                 self.version.as_component()
             }
-            fn update(&self) -> Component {
+            fn update(&self) -> Component<'_> {
                 self.update.as_component()
             }
-            fn edition(&self) -> Component {
+            fn edition(&self) -> Component<'_> {
                 self.edition.as_component()
             }
             fn language(&self) -> &Language {
                 &self.language
             }
-            fn sw_edition(&self) -> Component {
+            fn sw_edition(&self) -> Component<'_> {
                 self.sw_edition.as_component()
             }
-            fn target_sw(&self) -> Component {
+            fn target_sw(&self) -> Component<'_> {
                 self.target_sw.as_component()
             }
-            fn target_hw(&self) -> Component {
+            fn target_hw(&self) -> Component<'_> {
                 self.target_hw.as_component()
             }
-            fn other(&self) -> Component {
+            fn other(&self) -> Component<'_> {
                 self.other.as_component()
             }
         }
@@ -108,34 +109,34 @@ macro_rules! impl_cpe {
             fn part(&self) -> CpeType {
                 self.part
             }
-            fn vendor(&self) -> Component {
+            fn vendor(&self) -> Component<'_> {
                 self.vendor.clone()
             }
-            fn product(&self) -> Component {
+            fn product(&self) -> Component<'_> {
                 self.product.clone()
             }
-            fn version(&self) -> Component {
+            fn version(&self) -> Component<'_> {
                 self.version.clone()
             }
-            fn update(&self) -> Component {
+            fn update(&self) -> Component<'_> {
                 self.update.clone()
             }
-            fn edition(&self) -> Component {
+            fn edition(&self) -> Component<'_> {
                 self.edition.clone()
             }
             fn language(&self) -> &Language {
                 &self.language
             }
-            fn sw_edition(&self) -> Component {
+            fn sw_edition(&self) -> Component<'_> {
                 self.sw_edition.clone()
             }
-            fn target_sw(&self) -> Component {
+            fn target_sw(&self) -> Component<'_> {
                 self.target_sw.clone()
             }
-            fn target_hw(&self) -> Component {
+            fn target_hw(&self) -> Component<'_> {
                 self.target_hw.clone()
             }
-            fn other(&self) -> Component {
+            fn other(&self) -> Component<'_> {
                 self.other.clone()
             }
         }
@@ -144,8 +145,10 @@ macro_rules! impl_cpe {
 
 impl_cpe!(OwnedUri);
 impl_cpe!(OwnedWfn);
+impl_cpe!(OwnedFsb);
 impl_cpe!(Uri<'_>, 'a);
 impl_cpe!(Wfn<'_>, 'a);
+impl_cpe!(Fsb<'_>, 'a);
 
 /// A CPE Type Component
 ///
@@ -153,19 +156,14 @@ impl_cpe!(Wfn<'_>, 'a);
 /// * h - hardware
 /// * o - operating system
 /// * a - application
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CpeType {
+    #[default]
     Any,
     Hardware,
     OperatingSystem,
     Application,
     Empty,
-}
-
-impl Default for CpeType {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 impl TryFrom<&str> for CpeType {
@@ -174,6 +172,7 @@ impl TryFrom<&str> for CpeType {
     fn try_from(val: &str) -> Result<Self> {
         Ok(match val {
             "ANY" => Self::Any,
+            "*" => Self::Any,
             "h" => Self::Hardware,
             "o" => Self::OperatingSystem,
             "a" => Self::Application,

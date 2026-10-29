@@ -8,7 +8,7 @@
 //!
 //! 1. Parsing a WFN string
 //! ```
-//! use cpe::wfn::Wfn;
+//! use cpe_rs_fork::wfn::Wfn;
 //!
 //! let cpe: Wfn = Wfn::parse(r#"wfn:[part="a",vendor="rust",product="cargo"]"#).unwrap();
 //! println!("{:?}", cpe);
@@ -16,7 +16,7 @@
 //! 2. Using the builder pattern, with [builder](#method.builder)
 //! 3. Using the "setter" methods
 //! ```
-//! use cpe::wfn::Wfn;
+//! use cpe_rs_fork::wfn::Wfn;
 //!
 //! let mut cpe: Wfn = Wfn::new();
 //! cpe.set_part("a").unwrap();
@@ -27,7 +27,7 @@
 //! ```
 //! 4. Using the `wfn!{}` macro
 //! ```
-//! use cpe::{wfn, wfn::Wfn};
+//! use cpe_rs_fork::{wfn, wfn::Wfn};
 //!
 //! let cpe: Wfn = wfn!{
 //!                   part: "a",
@@ -49,6 +49,7 @@ use std::str::FromStr;
 use crate::component::{Component, OwnedComponent};
 use crate::cpe::{CpeType, Language};
 use crate::error::{CpeError, Result};
+use crate::fsb::Fsb;
 use crate::uri::{OwnedUri, Uri};
 
 use crate::builder::CpeBuilder;
@@ -100,7 +101,7 @@ macro_rules! wfn {
 /// the components when `#` is used to specify an alternate.
 ///
 ///```
-/// use cpe::wfn::Wfn;
+/// use cpe_rs_fork::wfn::Wfn;
 /// let wfn = Wfn::builder()
 ///           .part("a")
 ///           .vendor("foo\\!")
@@ -113,7 +114,7 @@ macro_rules! wfn {
 ///
 /// Additionally, the `0` for zero-padding integers can be used to omit default "ANY" fields.
 ///```
-/// use cpe::wfn::Wfn;
+/// use cpe_rs_fork::wfn::Wfn;
 /// let wfn = Wfn::builder()
 ///           .part("a")
 ///           .vendor("foo\\!")
@@ -147,7 +148,7 @@ impl<'a> Wfn<'a> {
     /// Create a `CpeBuilder` struct to construct a new Wfn.
     ///
     /// ```
-    /// use cpe::wfn::Wfn;
+    /// use cpe_rs_fork::wfn::Wfn;
     ///
     /// let cpe: Wfn = Wfn::builder()
     ///               .part("a")
@@ -421,6 +422,42 @@ impl<'a> From<&Uri<'a>> for Wfn<'a> {
             target_sw: uri.target_sw.clone(),
             target_hw: uri.target_hw.clone(),
             other: uri.other.clone(),
+        }
+    }
+}
+
+impl<'a> From<Fsb<'a>> for Wfn<'a> {
+    fn from(fsb: Fsb<'a>) -> Self {
+        Self {
+            part: fsb.part,
+            vendor: fsb.vendor,
+            product: fsb.product,
+            version: fsb.version,
+            update: fsb.update,
+            edition: fsb.edition,
+            language: fsb.language,
+            sw_edition: fsb.sw_edition,
+            target_sw: fsb.target_sw,
+            target_hw: fsb.target_hw,
+            other: fsb.other,
+        }
+    }
+}
+
+impl<'a> From<&Fsb<'a>> for Wfn<'a> {
+    fn from(fsb: &Fsb<'a>) -> Self {
+        Self {
+            part: fsb.part,
+            vendor: fsb.vendor.clone(),
+            product: fsb.product.clone(),
+            version: fsb.version.clone(),
+            update: fsb.update.clone(),
+            edition: fsb.edition.clone(),
+            language: fsb.language.clone(),
+            sw_edition: fsb.sw_edition.clone(),
+            target_sw: fsb.target_sw.clone(),
+            target_hw: fsb.target_hw.clone(),
+            other: fsb.other.clone(),
         }
     }
 }
